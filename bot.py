@@ -145,15 +145,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     create_or_update_user(user.id, user.username or "", user.full_name)
 
     text = (
-        f"سلام {user.first_name} 👋\n\n"
-        "به ربات دعوت و امتیاز خوش اومدی!\n\n"
-        "🔹 /mylink — لینک دعوت گروه\n"
-        "🔹 /mylink_channel — لینک دعوت کانال\n"
-        "🔹 /stats — امتیاز و تعداد دعوت‌هات\n"
-        "🔹 /top — رتبه‌بندی برترین‌ها\n"
-        "🔹 /help — راهنما\n\n"
-        "موفق باشی! 🚀"
-    )
+    f"🌿 به BESA خوش اومدی، {user.first_name}!\n\n"
+    "اینجا قراره طبیعت، هنر، تجربه و آدم‌های خوب رو کنار هم ببینیم.\n"
+    "تورهای طبیعت‌گردی، برنامه‌های هنری و آموزش مهارت‌های اجتماعی و تجربه‌های متفاوت؛\n\n"
+    "نزدیک به طبیعت، نزدیک به خودت. ✨\n\n"
+    "با ما همراه باش؛ تازه شروعشه...\n\n"
+    "📱 اینستاگرام: Besa.tabiatgardi\n"
+    "🎬 یوتیوب: https://youtube.com/@besajourney\n\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "🔗 /mylink — لینک دعوت گروه\n"
+    "🔗 /mylink_channel — لینک دعوت کانال\n"
+    "📊 /stats — امتیاز و دعوت‌هات\n"
+    "🏆 /top — رتبه‌بندی برترین‌ها\n"
+    "📖 /help — راهنما"
+)
     await update.message.reply_text(text)
 
 
