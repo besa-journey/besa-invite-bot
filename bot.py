@@ -638,3 +638,268 @@ def main():
 
 if __name__ == "__main__":
     main()
+# ==================== دستورات تور ====================
+async def tours(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """لیست تورهای فعال"""
+    all_tours = get_active_tours()
+    if not all_tours:
+        await update.message.reply_text("🎒 هنوز توری ساخته نشده!\n\nمنتظر تورهای جدید باش...")
+        return
+
+    text = "🎒 *تورهای فعال BESA:*\n\n"
+    for tour in all_tours:
+        tour_id, title, desc, location, date, capacity, price, is_active, created_by, created_at = tour
+        text += (
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 *{title}*\n"
+            f"📍 مکان: {location or 'نامشخص'}\n"
+            f"📅 تاریخ: {date or 'نامشخص'}\n"
+            f"👥 ظرفیت: {capacity} نفر\n"
+            f"📝 توضیحات: {desc or 'ندارد'}\n"
+            f"🆔 کد تور: `{tour_id}`\n"
+        )
+    text += "\n━━━━━━━━━━━━━━━━━━━━\n"
+    text += "برای ثبت‌نام: `/register <کد تور>`"
+    
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def newtour(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ساخت تور جدید (ادمین)"""
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ دسترسی نداری.")
+        return
+
+    if len(context.args) < 5:
+        await update.message.reply_text(
+            "📝 استفاده:\n"
+            "`/newtour عنوان | مکان | تاریخ | ظرفیت | توضیحات`\n\n"
+            "مثال:\n"
+            "`/newtour تور جنگل | مازندران | 1404/10/15 | 20 | یه روز طبیعت‌گردی`",
+            parse_mode="Markdown"
+        )
+        return
+
+    full_text = " ".join(context.args)
+    parts = [p.strip() for p in full_text.split("|")]
+    
+    if len(parts) < 4:
+        await update.message.reply_text("❌ فرمت اشتباهه. از `|` برای جدا کردن استفاده کن.")
+        return
+
+    title = parts[0]
+    location = parts[1]
+    date = parts[2]
+    capacity = int(parts[3]) if parts[3].isdigit() else 0
+    description = parts[4] if len(parts) > 4 else ""
+
+    create_tour(title, description, location, date, capacity, 0, update.effective_user.id)
+    await update.message.reply_text(f"✅ تور «{title}» با موفقیت ساخته شد!\n\nبرای دیدن: /tours")
+
+
+async def polls(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """لیست نظرسنجی‌های فعال"""
+    import json
+    active_polls = get_active_polls()
+    if not active_polls:
+        await update.message.reply_text("📊 هنوز نظرسنجی ساخته نشده!")
+        return
+
+    text = "📊 *نظرسنجی‌های فعال:*\n\n"
+    for poll in active_polls:
+        poll_id, question, options_json, is_active, created_by, created_at = poll
+        options = json.loads(options_json)
+        text += f"━━━━━━━━━━━━━━━━━━━━\n🆔 `{poll_id}` — *{question}*\n"
+        for i, opt in enumerate(options, 1):
+            text += f"  {i}. {opt}\n"
+    
+    text += "\n━━━━━━━━━━━━━━━━━━━━\n"
+    text += "برای رأی دادن: `/vote <شماره نظرسنجی> <شماره گزینه>`"
+    
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def newpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ساخت نظرسنجی جدید (ادمین)"""
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ دسترسی نداری.")
+        return
+
+    if len(context.args) < 3:
+        await update.message.reply_text(
+            "📝 استفاده:\n"
+            "`/newpoll سوال | گزینه1 | گزینه2 | گزینه3`\n\n"
+            "مثال:\n"
+            "`/newpoll کدوم تور رو می‌خوای؟ | جنگل | کوه | دریا`",
+            parse_mode="Markdown"
+        )
+        return
+
+    full_text = " ".join(context.args)
+    parts = [p.strip() for p in full_text.split("|")]
+    
+    if len(parts) < 3:
+        await update.message.reply_text("❌ حداقل باید سوال + ۲ گزینه باشه.")
+        return
+
+    question = parts[0]
+    options = parts[1:]
+
+    create_poll(question, options, update.effective_user.id)
+    await update.message.reply_text(f"✅ نظرسنجی «{question}» ساخته شد!\n\nبرای دیدن: /polls")
+
+
+async def vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """رأی دادن به نظرسنجی"""
+    import json
+    if len(context.args) < 2:
+        await update.message.reply_text("استفاده: `/vote <شماره نظرسنجی> <شماره گزینه>`", parse_mode="Markdown")
+        return
+
+    try:
+        poll_id = int(context.args[0])
+        option_num = int(context.args[1])
+    except ValueError:
+        await update.message.reply_text("❌ شماره‌ها باید عدد باشن.")
+        return
+
+    poll = get_poll(poll_id)
+    if not poll:
+        await update.message.reply_text("❌ نظرسنجی پیدا نشد.")
+        return
+
+    options = json.loads(poll[2])
+    if option_num < 1 or option_num > len(options):
+        await update.message.reply_text(f"❌ گزینه باید بین ۱ تا {len(options)} باشه.")
+        return
+
+    user = update.effective_user
+    if has_voted(poll_id, user.id):
+        await update.message.reply_text("❌ قبلاً رأی دادی!")
+        return
+
+    if save_vote(poll_id, user.id, option_num - 1):
+        await update.message.reply_text(f"✅ رأیت ثبت شد: {options[option_num-1]}")
+    else:
+        await update.message.reply_text("❌ خطا در ثبت رأی.")
+
+
+async def poll_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """نتیجه نظرسنجی"""
+    import json
+    if not context.args:
+        await update.message.reply_text("استفاده: `/pollresults <شماره نظرسنجی>`", parse_mode="Markdown")
+        return
+
+    try:
+        poll_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ شماره باید عدد باشه.")
+        return
+
+    poll = get_poll(poll_id)
+    if not poll:
+        await update.message.reply_text("❌ نظرسنجی پیدا نشد.")
+        return
+
+    options = json.loads(poll[2])
+    results = get_poll_results(poll_id)
+    results_dict = {r[0]: r[1] for r in results}
+    total = sum(results_dict.values()) or 1
+
+    text = f"📊 *نتیجه نظرسنجی:*\n{poll[1]}\n\n"
+    for i, opt in enumerate(options):
+        count = results_dict.get(i, 0)
+        percent = (count / total) * 100
+        bar = "█" * int(percent / 5) + "░" * (20 - int(percent / 5))
+        text += f"*{opt}*\n{bar} {count} رأی ({percent:.1f}%)\n\n"
+
+    text += f"👥 مجموع آرا: {total}"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ثبت‌نام توی تور"""
+    if not context.args:
+        await update.message.reply_text(
+            "📝 استفاده: `/register <کد تور>`\n\n"
+            "برای دیدن کد تورها: /tours",
+            parse_mode="Markdown"
+        )
+        return
+
+    try:
+        tour_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ کد تور باید عدد باشه.")
+        return
+
+    tour = get_tour(tour_id)
+    if not tour or not tour[7]:
+        await update.message.reply_text("❌ تور پیدا نشد یا غیرفعاله.")
+        return
+
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    if is_registered(tour_id, user.id):
+        await update.message.reply_text("❌ قبلاً توی این تور ثبت‌نام کردی!")
+        return
+
+    # ذخیره‌ی اطلاعات پایه
+    db_execute(
+        """INSERT INTO registrations 
+           (tour_id, user_id, full_name, age, city, registered_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (tour_id, user.id, user.full_name, 0, "", datetime.now().isoformat())
+    )
+
+    await update.message.reply_text(
+        f"✅ توی تور «{tour[1]}» ثبت‌نام شدی!\n\n"
+        f"📅 تاریخ: {tour[4]}\n"
+        f"📍 مکان: {tour[3]}\n\n"
+        f"برای تکمیل اطلاعات: /myregistrations"
+    )
+
+
+async def myregistrations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تورهای من"""
+    user = update.effective_user
+    regs = get_user_registrations(user.id)
+    
+    if not regs:
+        await update.message.reply_text("📝 هنوز توی هیچ توری ثبت‌نام نکردی.\n\nبرای دیدن تورها: /tours")
+        return
+
+    text = "📝 *تورهای من:*\n\n"
+    for reg in regs:
+        text += (
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 {reg[5]}\n"
+            f"📅 تاریخ: {reg[6]}\n"
+            f"📍 مکان: {reg[7]}\n"
+            f"✅ وضعیت: {reg[10]}\n"
+        )
+    
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """لغو ثبت‌نام"""
+    if not context.args:
+        await update.message.reply_text("استفاده: `/cancelreg <کد تور>`", parse_mode="Markdown")
+        return
+
+    try:
+        tour_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ کد تور باید عدد باشه.")
+        return
+
+    user = update.effective_user
+    if not is_registered(tour_id, user.id):
+        await update.message.reply_text("❌ توی این تور ثبت‌نام نکردی.")
+        return
+
+    db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
+    await update.message.reply_text("✅ ثبت‌نامت لغو شد.")
