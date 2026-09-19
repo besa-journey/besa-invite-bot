@@ -897,11 +897,10 @@ async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user = update.effective_user
-    if not is_registered(tour_id, user.id):
-        await update.message.reply_text("❌ توی این تور ثبت‌نام نکردی.")
-        return
+    if not is_registered(tour_id, user.id):        return
 
-     await update.message.reply_text("✅ ثبتنامت لغو شد.")
+    db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
+    await update.message.reply_text("✅ ثبت‌نامت لغو شد.")
 
 
 # ==================== اصلی ====================
@@ -913,7 +912,6 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # دستورات پایه
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mylink", mylink))
     app.add_handler(CommandHandler("mylink_channel", mylink_channel))
@@ -923,7 +921,6 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("givepoints", give_points))
 
-    # دستورات تور و نظرسنجی
     app.add_handler(CommandHandler("tours", tours))
     app.add_handler(CommandHandler("newtour", newtour))
     app.add_handler(CommandHandler("polls", polls))
@@ -934,7 +931,6 @@ def main():
     app.add_handler(CommandHandler("myregistrations", myregistrations))
     app.add_handler(CommandHandler("cancelreg", cancelreg))
 
-    # تشخیص ورود
     app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatJoinRequestHandler(on_join_request))
 
@@ -944,4 +940,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
+        await update.message.reply_text("❌ توی این تور ثبت‌نام نکردی.")
