@@ -904,3 +904,43 @@ async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
  
 await update.message.reply_text("✅ ثبت‌نامت لغو شد.")
+# ==================== اصلی ====================
+def main():
+    if not BOT_TOKEN:
+        raise ValueError("BOT_TOKEN تنظیم نشده!")
+
+    init_db()
+
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    # دستورات پایه
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("mylink", mylink))
+    app.add_handler(CommandHandler("mylink_channel", mylink_channel))
+    app.add_handler(CommandHandler("newlink_channel", newlink_channel))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("top", top))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("givepoints", give_points))
+
+    # دستورات تور و نظرسنجی
+    app.add_handler(CommandHandler("tours", tours))
+    app.add_handler(CommandHandler("newtour", newtour))
+    app.add_handler(CommandHandler("polls", polls))
+    app.add_handler(CommandHandler("newpoll", newpoll))
+    app.add_handler(CommandHandler("vote", vote))
+    app.add_handler(CommandHandler("pollresults", poll_results))
+    app.add_handler(CommandHandler("register", register))
+    app.add_handler(CommandHandler("myregistrations", myregistrations))
+    app.add_handler(CommandHandler("cancelreg", cancelreg))
+
+    # تشخیص ورود
+    app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(ChatJoinRequestHandler(on_join_request))
+
+    logger.info("ربات شروع به کار کرد...")
+    app.run_polling(allowed_updates=["message", "chat_member", "chat_join_request"])
+
+
+if __name__ == "__main__":
+    main()
