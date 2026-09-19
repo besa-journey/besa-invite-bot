@@ -940,4 +940,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        await update.message.reply_text("❌ توی این تور ثبت‌نام نکردی.")
+        
