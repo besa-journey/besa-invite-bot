@@ -463,3 +463,149 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 /help — همین پیام"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
+# ==================== ساخت لینک و خوش‌آمد ====================
+async def create_invite_link(context, chat_id: int, user_id: int, chat_type: str):
+    kwargs = {
+        "chat_id": int(chat_id),
+        "name": str(user_id),
+    }
+    if chat_type == "channel":
+        kwargs["creates_join_request"] = True
+        kwargs["member_limit"] = 1
+    else:
+        kwargs["creates_join_request"] = False
+
+    invite = await context.bot.create_chat_invite_link(**kwargs)
+    save_link(user_id, invite.invite_link, chat_type)
+    return invite.invite_link
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    text = (
+        f"🌿 به BESA خوش اومدی، {user.first_name}!\n\n"
+        "اینجا قراره طبیعت، هنر، تجربه و آدم‌های خوب رو کنار هم ببینیم.\n"
+        "تورهای طبیعت‌گردی، برنامه‌های هنری و آموزش مهارت‌های اجتماعی و تجربه‌های متفاوت؛\n\n"
+        "نزدیک به طبیعت، نزدیک به خودت. ✨\n\n"
+        "با ما همراه باش؛ تازه شروعشه...\n\n"
+        "📱 اینستاگرام: Besa.tabiatgardi\n"
+        "🎬 یوتیوب: https://youtube.com/@besajourney\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🎯 دستورات اصلی:\n"
+        "🔗 /mylink — لینک دعوت گروه\n"
+        "🔗 /mylink_channel — لینک دعوت کانال\n"
+        "📊 /stats — امتیاز و دعوت‌هات\n"
+        "🏆 /top — رتبه‌بندی برترین‌ها\n"
+        "🎒 /tours — لیست تورها\n"
+        "📝 /myregistrations — تورهای من\n"
+        "📊 /polls — نظرسنجی‌ها\n"
+        "📖 /help — راهنما"
+    )
+    await update.message.reply_text(text)
+
+
+# ==================== تشخیص ورود عضو ====================
+def extract_status_change(chat_member_update: ChatMemberUpdated):
+    status_change = chat_member_update.difference().get("status")
+    old_is_member, new_is_member = chat_member_update.difference().get("is_member", (None, None))
+
+    if status_change is None:
+        return None
+
+    old_status, new_status = status_change
+    was_member = old_status in [ChatMember.MEMBER, ChatMember.OWNER, ChatMember.ADMINISTRATOR] \
+                 or (old_status == ChatMember.RESTRICTED and old_is_member)
+    is_member = new_status in [ChatMember.MEMBER, ChatMember.OWNER, ChatMember.ADMINISTRATOR] \
+                or (new_status == ChatMember.RESTRICTED and new_is_member)
+
+    return was_member, is_member
+
+
+async def on_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    result = extract_status_change(update.chat_member)
+    if result is None:
+        return
+
+    was_member, is_member = result
+    if was_member or not is_member:
+        return
+
+    chat = update.effective_chat
+    new_member = update.chat_member.new_chat_member.user
+    invite_link: ChatInviteLink | None = update.chat_member.invite_link
+
+    if invite_link and invite_link.name:
+        inviter_id = find_inviter_by_link_name(invite_link.name)
+        if inviter_id and inviter_id != new_member.id:
+            if record_join(inviter_id, new_member.id, chat.id, "group"):
+                add_points(inviter_id)
+
+                try:
+                    await context.bot.send_message(
+                        chat_id=inviter_id,
+                        text=(
+                            f"🎉 کسی با لینک تو وارد گروه شد!\n\n"
+                            f"👤 {new_member.full_name}\n"
+                            f"⭐ +{POINTS_PER_INVITE} امتیاز"
+                        )
+                    )
+                except Exception:
+                    pass
+
+                if WELCOME_IN_GROUP:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=chat.id,
+                            text=f"👋 {new_member.full_name} به جمع ما پیوست!"
+                        )
+                    except Exception:
+                        pass
+
+
+async def on_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    join_request = update.chat_join_request
+    chat = update.effective_chat
+    new_user = join_request.from_user
+    invite_link: ChatInviteLink | None = join_request.invite_link
+
+    try:
+        await context.bot.approve_chat_join_request(chat_id=chat.id, user_id=new_user.id)
+    except Exception as e:
+        logger.error(f"Error approving: {e}")
+        return
+
+    if invite_link and invite_link.name:
+        inviter_id = find_inviter_by_link_name(invite_link.name)
+        if inviter_id and inviter_id != new_user.id:
+            if record_join(inviter_id, new_user.id, chat.id, "channel"):
+                add_points(inviter_id)
+
+                try:
+                    await context.bot.send_message(
+                        chat_id=inviter_id,
+                        text=(
+                            f"🎉 کسی با لینک تو وارد کانال شد!\n\n"
+                            f"👤 {new_user.full_name}\n"
+                            f"⭐ +{POINTS_PER_INVITE} امتیاز\n\n"
+                            f"برای لینک جدید: /newlink_channel"
+                        )
+                    )
+                except Exception:
+                    pass
+
+
+# ==================== دستور ادمین ====================
+async def give_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ دسترسی نداری.")
+        return
+
+    try:
+        target_id = int(context.args[0])
+        points = int(context.args[1])
+        add_points(target_id, points)
+        await update.message.reply_text(f"✅ {points} امتیاز به {target_id} داده شد.")
+    except (IndexError, ValueError):
+        await update.message.reply_text("استفاده: /givepoints user_id points")
