@@ -284,3 +284,182 @@ def get_poll_results(poll_id):
         "SELECT option_index, COUNT(*) FROM poll_votes WHERE poll_id = ? GROUP BY option_index",
         (poll_id,), fetchall=True
     )
+# ==================== توابع کمکی ====================
+async def create_invite_link(context, chat_id: int, user_id: int, chat_type: str):
+    kwargs = {
+        "chat_id": int(chat_id),
+        "name": str(user_id),
+    }
+    if chat_type == "channel":
+        kwargs["creates_join_request"] = True
+        kwargs["member_limit"] = 1
+    else:
+        kwargs["creates_join_request"] = False
+
+    invite = await context.bot.create_chat_invite_link(**kwargs)
+    save_link(user_id, invite.invite_link, chat_type)
+    return invite.invite_link
+
+
+# ==================== دستورات پایه ====================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    text = (
+        f"🌿 به BESA خوش اومدی، {user.first_name}!\n\n"
+        "اینجا قراره طبیعت، هنر، تجربه و آدم‌های خوب رو کنار هم ببینیم.\n"
+        "تورهای طبیعت‌گردی، برنامه‌های هنری و آموزش مهارت‌های اجتماعی و تجربه‌های متفاوت؛\n\n"
+        "نزدیک به طبیعت، نزدیک به خودت. ✨\n\n"
+        "با ما همراه باش؛ تازه شروعشه...\n\n"
+        "📱 اینستاگرام: Besa.tabiatgardi\n"
+        "🎬 یوتیوب: https://youtube.com/@besajourney\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🎯 دستورات اصلی:\n"
+        "🔗 /mylink — لینک دعوت گروه\n"
+        "🔗 /mylink_channel — لینک دعوت کانال\n"
+        "📊 /stats — امتیاز و دعوت‌هات\n"
+        "🏆 /top — رتبه‌بندی برترین‌ها\n"
+        "🎒 /tours — لیست تورها\n"
+        "📝 /myregistrations — تورهای من\n"
+        "📊 /polls — نظرسنجی‌ها\n"
+        "📖 /help — راهنما"
+    )
+    await update.message.reply_text(text)
+
+
+async def mylink(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    if not GROUP_ID:
+        await update.message.reply_text("❌ گروه تنظیم نشده.")
+        return
+
+    existing = get_user(user.id)
+    if existing and existing[5]:
+        await update.message.reply_text(
+            f"🔗 لینک اختصاصی گروه تو:\n\n{existing[5]}\n\n"
+            "با این لینک دوستات رو به گروه دعوت کن! 🎯"
+        )
+        return
+
+    try:
+        link = await create_invite_link(context, GROUP_ID, user.id, "group")
+        await update.message.reply_text(
+            f"✅ لینک اختصاصی گروه تو:\n\n{link}\n\n"
+            "هر کی با این لینک بیاد، امتیاز می‌گیری! 🎯"
+        )
+    except Exception as e:
+        logger.error(f"Error creating group link: {e}")
+        await update.message.reply_text(
+            "❌ نتونستم لینک بسازم.\n"
+            "مطمئن شو ربات ادمین گروهه و دسترسی «دعوت کاربران» داره."
+        )
+
+
+async def mylink_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    if not CHANNEL_ID:
+        await update.message.reply_text("❌ کانال تنظیم نشده.")
+        return
+
+    existing = get_user(user.id)
+    if existing and existing[6]:
+        await update.message.reply_text(
+            f"🔗 لینک اختصاصی کانال تو:\n\n{existing[6]}\n\n"
+            "⚠️ این لینک فقط برای یه نفره. بعد از اینکه یکی عضو شد، /newlink_channel بزن."
+        )
+        return
+
+    try:
+        link = await create_invite_link(context, CHANNEL_ID, user.id, "channel")
+        await update.message.reply_text(
+            f"✅ لینک اختصاصی کانال تو:\n\n{link}\n\n"
+            "⚠️ این لینک فقط یه نفر رو می‌تونه بیاره.\n"
+            "بعد از هر دعوت موفق، /newlink_channel بزن."
+        )
+    except Exception as e:
+        logger.error(f"Error creating channel link: {e}")
+        await update.message.reply_text(
+            "❌ نتونستم لینک کانال بسازم.\n"
+            "مطمئن شو ربات ادمین کاناله و دسترسی «دعوت کاربران» داره."
+        )
+
+
+async def newlink_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+
+    if not CHANNEL_ID:
+        await update.message.reply_text("❌ کانال تنظیم نشده.")
+        return
+
+    try:
+        link = await create_invite_link(context, CHANNEL_ID, user.id, "channel")
+        await update.message.reply_text(
+            f"✅ لینک جدید کانال:\n\n{link}\n\n"
+            "این لینک فقط یه نفر رو میاره."
+        )
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        await update.message.reply_text("❌ خطا در ساخت لینک جدید.")
+
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    create_or_update_user(user.id, user.username or "", user.full_name)
+    data = get_user(user.id)
+
+    if not data:
+        await update.message.reply_text("هنوز اطلاعاتی نداری. اول /start بزن.")
+        return
+
+    text = (
+        f"📊 آمار تو:\n\n"
+        f"👤 نام: {data[2]}\n"
+        f"⭐ امتیاز: {data[3]}\n"
+        f"👥 تعداد دعوت موفق: {data[4]}\n\n"
+        f"🔗 لینک گروه:\n{data[5] or 'نداری'}\n\n"
+        f"🔗 لینک کانال:\n{data[6] or 'نداری'}"
+    )
+    await update.message.reply_text(text)
+
+
+async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rows = get_top_users(10)
+    if not rows:
+        await update.message.reply_text("هنوز کسی دعوت نکرده!")
+        return
+
+    text = "🏆 رتبه‌بندی برترین دعوت‌کننده‌ها:\n\n"
+    medals = ["🥇", "🥈", "🥉"]
+    for i, row in enumerate(rows, 1):
+        user_id, full_name, username, points, invites = row
+        name = full_name or (f"@{username}" if username else f"User {user_id}")
+        medal = medals[i-1] if i <= 3 else f"{i}."
+        text += f"{medal} {name} — {points} امتیاز ({invites} دعوت)\n"
+
+    await update.message.reply_text(text)
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📖 راهنمای ربات BESA:\n\n"
+        "🎯 *دعوت و امتیاز:*\n"
+        "/mylink — لینک دعوت گروه\n"
+        "/mylink_channel — لینک دعوت کانال\n"
+        "/newlink_channel — لینک جدید کانال\n"
+        "/stats — آمار تو\n"
+        "/top — برترین‌ها\n\n"
+        "🎒 *تورها:*\n"
+        "/tours — لیست تورهای فعال\n"
+        "/myregistrations — تورهای من\n"
+        "/cancelreg — لغو ثبت‌نام\n\n"
+        "📊 *نظرسنجی:*\n"
+        "/polls — لیست نظرسنجی‌ها\n\n"
+        "📖 /help — همین پیام"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
