@@ -902,8 +902,7 @@ async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
- 
-await update.message.reply_text("✅ ثبت‌نامت لغو شد.")
+await update.message.reply_text("✅ ثبت‌نامت لغو شد.") 
 # ==================== اصلی ====================
 def main():
     if not BOT_TOKEN:
