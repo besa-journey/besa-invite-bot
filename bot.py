@@ -9,7 +9,7 @@ from telegram import (
 from telegram.ext import (
     Application, CommandHandler, ChatMemberHandler,
     ChatJoinRequestHandler, ContextTypes, filters,
-    CallbackQueryHandler, MessageHandler, ConversationHandler
+    CallbackQueryHandler, MessageHandler
 )
 
 # ==================== تنظیمات ====================
@@ -34,7 +34,6 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # جدول کاربران
     c.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -48,7 +47,6 @@ def init_db():
         )
     """)
     
-    # جدول دعوت‌ها
     c.execute("""
         CREATE TABLE IF NOT EXISTS joins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +59,6 @@ def init_db():
         )
     """)
     
-    # جدول تورها
     c.execute("""
         CREATE TABLE IF NOT EXISTS tours (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +74,6 @@ def init_db():
         )
     """)
     
-    # جدول ثبت‌نام‌ها
     c.execute("""
         CREATE TABLE IF NOT EXISTS registrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +93,6 @@ def init_db():
         )
     """)
     
-    # جدول نظرسنجی‌ها
     c.execute("""
         CREATE TABLE IF NOT EXISTS polls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,7 +104,6 @@ def init_db():
         )
     """)
     
-    # جدول رأی‌ها
     c.execute("""
         CREATE TABLE IF NOT EXISTS poll_votes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,7 +133,6 @@ def db_execute(query, params=(), fetch=False, fetchall=False):
         conn.commit()
     conn.close()
     return result
-
 
 # ==================== توابع کاربر ====================
 def get_user(user_id: int):
@@ -284,6 +277,7 @@ def get_poll_results(poll_id):
         "SELECT option_index, COUNT(*) FROM poll_votes WHERE poll_id = ? GROUP BY option_index",
         (poll_id,), fetchall=True
     )
+
 # ==================== توابع کمکی ====================
 async def create_invite_link(context, chat_id: int, user_id: int, chat_type: str):
     kwargs = {
@@ -463,48 +457,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 /help — همین پیام"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
-# ==================== ساخت لینک و خوش‌آمد ====================
-async def create_invite_link(context, chat_id: int, user_id: int, chat_type: str):
-    kwargs = {
-        "chat_id": int(chat_id),
-        "name": str(user_id),
-    }
-    if chat_type == "channel":
-        kwargs["creates_join_request"] = True
-        kwargs["member_limit"] = 1
-    else:
-        kwargs["creates_join_request"] = False
-
-    invite = await context.bot.create_chat_invite_link(**kwargs)
-    save_link(user_id, invite.invite_link, chat_type)
-    return invite.invite_link
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    create_or_update_user(user.id, user.username or "", user.full_name)
-
-    text = (
-        f"🌿 به BESA خوش اومدی، {user.first_name}!\n\n"
-        "اینجا قراره طبیعت، هنر، تجربه و آدم‌های خوب رو کنار هم ببینیم.\n"
-        "تورهای طبیعت‌گردی، برنامه‌های هنری و آموزش مهارت‌های اجتماعی و تجربه‌های متفاوت؛\n\n"
-        "نزدیک به طبیعت، نزدیک به خودت. ✨\n\n"
-        "با ما همراه باش؛ تازه شروعشه...\n\n"
-        "📱 اینستاگرام: Besa.tabiatgardi\n"
-        "🎬 یوتیوب: https://youtube.com/@besajourney\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🎯 دستورات اصلی:\n"
-        "🔗 /mylink — لینک دعوت گروه\n"
-        "🔗 /mylink_channel — لینک دعوت کانال\n"
-        "📊 /stats — امتیاز و دعوت‌هات\n"
-        "🏆 /top — رتبه‌بندی برترین‌ها\n"
-        "🎒 /tours — لیست تورها\n"
-        "📝 /myregistrations — تورهای من\n"
-        "📊 /polls — نظرسنجی‌ها\n"
-        "📖 /help — راهنما"
-    )
-    await update.message.reply_text(text)
-
 
 # ==================== تشخیص ورود عضو ====================
 def extract_status_change(chat_member_update: ChatMemberUpdated):
@@ -536,6 +488,22 @@ async def on_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_member = update.chat_member.new_chat_member.user
     invite_link: ChatInviteLink | None = update.chat_member.invite_link
 
+    # پیام خوش‌آمد به عضو جدید
+    if WELCOME_IN_GROUP:
+        try:
+            await context.bot.send_message(
+                chat_id=chat.id,
+                text=(
+                    f"👋 سلام {new_member.full_name}!\n\n"
+                    f"🌿 به BESA خوش اومدی!\n\n"
+                    f"🎁 اگه دوستات رو با لینک اختصاصی خودت دعوت کنی، بهت امتیاز تعلق می‌گیره!\n\n"
+                    f"🔗 برای گرفتن لینک: /mylink\n"
+                    f"📊 برای دیدن امتیاز: /stats"
+                )
+            )
+        except Exception:
+            pass
+
     if invite_link and invite_link.name:
         inviter_id = find_inviter_by_link_name(invite_link.name)
         if inviter_id and inviter_id != new_member.id:
@@ -554,15 +522,6 @@ async def on_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-                if WELCOME_IN_GROUP:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=chat.id,
-                            text=f"👋 {new_member.full_name} به جمع ما پیوست!"
-                        )
-                    except Exception:
-                        pass
-
 
 async def on_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     join_request = update.chat_join_request
@@ -575,6 +534,21 @@ async def on_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error approving: {e}")
         return
+
+    # پیام خوش‌آمد به عضو جدید کانال
+    try:
+        await context.bot.send_message(
+            chat_id=new_user.id,
+            text=(
+                f"👋 سلام {new_user.full_name}!\n\n"
+                f"🌿 به کانال BESA خوش اومدی!\n\n"
+                f"🎁 اگه دوستات رو با لینک اختصاصی خودت دعوت کنی، بهت امتیاز تعلق می‌گیره!\n\n"
+                f"🔗 برای گرفتن لینک: /mylink_channel\n"
+                f"📊 برای دیدن امتیاز: /stats"
+            )
+        )
+    except Exception:
+        pass
 
     if invite_link and invite_link.name:
         inviter_id = find_inviter_by_link_name(invite_link.name)
@@ -609,38 +583,10 @@ async def give_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ {points} امتیاز به {target_id} داده شد.")
     except (IndexError, ValueError):
         await update.message.reply_text("استفاده: /givepoints user_id points")
-# ==================== اصلی ====================
-def main():
-    if not BOT_TOKEN:
-        raise ValueError("BOT_TOKEN تنظیم نشده!")
-
-    init_db()
-
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    # دستورات
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("mylink", mylink))
-    app.add_handler(CommandHandler("mylink_channel", mylink_channel))
-    app.add_handler(CommandHandler("newlink_channel", newlink_channel))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(CommandHandler("top", top))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("givepoints", give_points))
-
-    # تشخیص ورود
-    app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
-    app.add_handler(ChatJoinRequestHandler(on_join_request))
-
-    logger.info("ربات شروع به کار کرد...")
-    app.run_polling(allowed_updates=["message", "chat_member", "chat_join_request"])
 
 
-if __name__ == "__main__":
-    main()
 # ==================== دستورات تور ====================
 async def tours(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """لیست تورهای فعال"""
     all_tours = get_active_tours()
     if not all_tours:
         await update.message.reply_text("🎒 هنوز توری ساخته نشده!\n\nمنتظر تورهای جدید باش...")
@@ -660,17 +606,16 @@ async def tours(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     text += "\n━━━━━━━━━━━━━━━━━━━━\n"
     text += "برای ثبت‌نام: `/register <کد تور>`"
-    
+
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def newtour(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ساخت تور جدید (ادمین)"""
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("❌ دسترسی نداری.")
         return
 
-    if len(context.args) < 5:
+    if len(context.args) < 4:
         await update.message.reply_text(
             "📝 استفاده:\n"
             "`/newtour عنوان | مکان | تاریخ | ظرفیت | توضیحات`\n\n"
@@ -682,7 +627,7 @@ async def newtour(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     full_text = " ".join(context.args)
     parts = [p.strip() for p in full_text.split("|")]
-    
+
     if len(parts) < 4:
         await update.message.reply_text("❌ فرمت اشتباهه. از `|` برای جدا کردن استفاده کن.")
         return
@@ -698,7 +643,6 @@ async def newtour(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def polls(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """لیست نظرسنجی‌های فعال"""
     import json
     active_polls = get_active_polls()
     if not active_polls:
@@ -712,15 +656,14 @@ async def polls(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"━━━━━━━━━━━━━━━━━━━━\n🆔 `{poll_id}` — *{question}*\n"
         for i, opt in enumerate(options, 1):
             text += f"  {i}. {opt}\n"
-    
+
     text += "\n━━━━━━━━━━━━━━━━━━━━\n"
     text += "برای رأی دادن: `/vote <شماره نظرسنجی> <شماره گزینه>`"
-    
+
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def newpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ساخت نظرسنجی جدید (ادمین)"""
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("❌ دسترسی نداری.")
         return
@@ -737,7 +680,7 @@ async def newpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     full_text = " ".join(context.args)
     parts = [p.strip() for p in full_text.split("|")]
-    
+
     if len(parts) < 3:
         await update.message.reply_text("❌ حداقل باید سوال + ۲ گزینه باشه.")
         return
@@ -750,7 +693,6 @@ async def newpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """رأی دادن به نظرسنجی"""
     import json
     if len(context.args) < 2:
         await update.message.reply_text("استفاده: `/vote <شماره نظرسنجی> <شماره گزینه>`", parse_mode="Markdown")
@@ -785,7 +727,6 @@ async def vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def poll_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """نتیجه نظرسنجی"""
     import json
     if not context.args:
         await update.message.reply_text("استفاده: `/pollresults <شماره نظرسنجی>`", parse_mode="Markdown")
@@ -819,7 +760,6 @@ async def poll_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ثبت‌نام توی تور"""
     if not context.args:
         await update.message.reply_text(
             "📝 استفاده: `/register <کد تور>`\n\n"
@@ -846,7 +786,6 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ قبلاً توی این تور ثبت‌نام کردی!")
         return
 
-    # ذخیره‌ی اطلاعات پایه
     db_execute(
         """INSERT INTO registrations 
            (tour_id, user_id, full_name, age, city, registered_at)
@@ -863,10 +802,9 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def myregistrations(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تورهای من"""
     user = update.effective_user
     regs = get_user_registrations(user.id)
-    
+
     if not regs:
         await update.message.reply_text("📝 هنوز توی هیچ توری ثبت‌نام نکردی.\n\nبرای دیدن تورها: /tours")
         return
@@ -880,12 +818,11 @@ async def myregistrations(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📍 مکان: {reg[7]}\n"
             f"✅ وضعیت: {reg[10]}\n"
         )
-    
+
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
 async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """لغو ثبت‌نام"""
     if not context.args:
         await update.message.reply_text("استفاده: `/cancelreg <کد تور>`", parse_mode="Markdown")
         return
@@ -897,11 +834,12 @@ async def cancelreg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user = update.effective_user
-    if not is_registered(tour_id, user.id):        return
+    if not is_registered(tour_id, user.id):
+        await update.message.reply_text("❌ توی این تور ثبت‌نام نکردی.")
+        return
 
     db_execute("DELETE FROM registrations WHERE tour_id = ? AND user_id = ?", (tour_id, user.id))
     await update.message.reply_text("✅ ثبت‌نامت لغو شد.")
-
 
 # ==================== اصلی ====================
 def main():
@@ -912,6 +850,7 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # دستورات پایه
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mylink", mylink))
     app.add_handler(CommandHandler("mylink_channel", mylink_channel))
@@ -921,6 +860,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("givepoints", give_points))
 
+    # دستورات تور و نظرسنجی
     app.add_handler(CommandHandler("tours", tours))
     app.add_handler(CommandHandler("newtour", newtour))
     app.add_handler(CommandHandler("polls", polls))
@@ -931,6 +871,7 @@ def main():
     app.add_handler(CommandHandler("myregistrations", myregistrations))
     app.add_handler(CommandHandler("cancelreg", cancelreg))
 
+    # تشخیص ورود
     app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatJoinRequestHandler(on_join_request))
 
