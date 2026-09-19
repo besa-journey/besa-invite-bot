@@ -609,3 +609,32 @@ async def give_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ {points} امتیاز به {target_id} داده شد.")
     except (IndexError, ValueError):
         await update.message.reply_text("استفاده: /givepoints user_id points")
+# ==================== اصلی ====================
+def main():
+    if not BOT_TOKEN:
+        raise ValueError("BOT_TOKEN تنظیم نشده!")
+
+    init_db()
+
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    # دستورات
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("mylink", mylink))
+    app.add_handler(CommandHandler("mylink_channel", mylink_channel))
+    app.add_handler(CommandHandler("newlink_channel", newlink_channel))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("top", top))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("givepoints", give_points))
+
+    # تشخیص ورود
+    app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(ChatJoinRequestHandler(on_join_request))
+
+    logger.info("ربات شروع به کار کرد...")
+    app.run_polling(allowed_updates=["message", "chat_member", "chat_join_request"])
+
+
+if __name__ == "__main__":
+    main()
